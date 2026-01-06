@@ -1,0 +1,10 @@
+openai
+qdrant-client
+ragas
+datasets
+langchain
+langchain-openai
+llama-index
+chonkie
+tiktoken
+python-dotenv

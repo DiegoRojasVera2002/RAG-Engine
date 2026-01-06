@@ -1,0 +1,18 @@
+[project]
+name = "rag-engine"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12.11"
+dependencies = [
+    "chonkie[all,semantic]>=1.5.1",
+    "openai",
+    "qdrant-client",
+    "ragas",
+    "datasets",
+    "langchain",
+    "langchain-openai",
+    "llama-index",
+    "tiktoken",
+    "python-dotenv",
+]
