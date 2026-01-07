@@ -37,7 +37,7 @@ FILTERING_TEMPERATURE = 0.0     # Deterministic scoring
 GENERATION_LLM = "gpt-4o-mini"  # Main response generator
 
 # Vector Database
-COLLECTION_NAME = "production_semantic"
+COLLECTION_NAME = "benchmark_semantic"  # Usa la colección de ingesta
 
 # Logging
 LOG_LEVEL = "INFO"

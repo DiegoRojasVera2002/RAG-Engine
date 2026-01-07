@@ -75,13 +75,14 @@ OPENAI_API_KEY=tu_openai_key
 ### 1. Ingesta de Documentos
 
 ```bash
-# Ejecutar ingesta (crea colecciones en Qdrant)
+# Ejecutar ingesta (crea colección en Qdrant)
 uv run scripts/ingest.py
 ```
 
-Esto crea dos colecciones:
-- `benchmark_chonkie`: Chunks basados en tokens (RecursiveChunker)
+Esto crea la colección:
 - `benchmark_semantic`: Chunks semánticos (SemanticChunker con threshold=0.8)
+
+*Nota: Chonkie chunking está deshabilitado. Solo se usa semantic chunking para producción.*
 
 ### 2. Pipeline de Producción (Recomendado) 🚀
 
