@@ -56,6 +56,9 @@ def retrieve(query, label, k=5, use_filtering=False):
     if use_filtering and len(chunks) > 0:
         logging.info("Applying ChunkRAG LLM filtering...")
         chunks = filter_chunks_by_relevance(chunks, query, min_chunks=k)
+        
+        # Si queremos usar secuencialmente aprox 45 segundos
+        #chunks = filter_chunks_by_relevance(chunks, query, use_async=False)
         logging.info(f"After filtering: {len(chunks)} chunks")
 
     return chunks[:k]  # Return top k after filtering
