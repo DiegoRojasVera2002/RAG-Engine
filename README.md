@@ -4,9 +4,10 @@ Sistema de Retrieval-Augmented Generation (RAG) optimizado con implementación d
 
 **✨ Características principales:**
 - Semantic chunking (θ=0.8)
-- Multi-stage LLM filtering con procesamiento async paralelo
+- Multi-stage LLM filtering con procesamiento paralelo
 - Pipeline de producción listo para usar
 - 4x más rápido que implementación secuencial
+- **DSPy integration** para optimización automática de prompts
 
 ## 📁 Estructura del Proyecto
 
@@ -16,18 +17,23 @@ rag-engine/
 │   ├── Propuesta_Tecnica_Analitica_Avanzada.pdf
 │   └── TDD - Learning Journey BCP v2 - 20250429.pdf
 │
+├── docs/                          # 📚 Documentación
+│   └── DSPY_IMPLEMENTATION.md    # Guía completa de DSPy
+│
 ├── pipelines/                     # 🆕 Pipelines de producción
 │   └── production/
-│       ├── rag.py                # Pipeline optimizado (semantic + async filtering)
-│       └── config.py             # Configuración de producción
+│       ├── rag.py                # Pipeline original (async filtering)
+│       ├── rag_dspy.py           # Pipeline DSPy (prompts optimizables)
+│       ├── config.py             # Configuración de producción
+│       └── compiled_scorer.json  # Scorer DSPy optimizado (generado)
 │
 ├── src/                           # Código fuente base
 │   ├── chunking/                  # Estrategias de chunking
-│   │   ├── chonkie_chunk.py      # Token-based (RecursiveChunker)
 │   │   └── semantic_chunk.py     # Semantic chunking (ChunkRAG)
 │   │
 │   ├── filtering/                 # ChunkRAG multi-stage LLM filtering
-│   │   └── chunk_filter.py       # Base → Self-Reflection → Critic (async)
+│   │   ├── chunk_filter.py       # Base → Self-Reflection → Critic (async)
+│   │   └── chunk_filter_dspy.py  # Versión DSPy optimizable (threads)
 │   │
 │   ├── retrieval/                 # Query y recuperación
 │   │   └── query.py              # Retrieval con/sin filtering
@@ -37,7 +43,8 @@ rag-engine/
 │       └── ground_truth.py       # Respuestas de referencia
 │
 ├── scripts/                       # Scripts de ejecución
-│   └── ingest.py                 # Ingesta de PDFs a Qdrant
+│   ├── ingest.py                 # Ingesta de PDFs a Qdrant (semantic only)
+│   └── train_dspy.py             # Entrenamiento DSPy con ejemplos
 │
 ├── results/                       # Resultados de evaluaciones
 │   ├── baseline/                 # Sin filtering
@@ -86,6 +93,8 @@ Esto crea la colección:
 
 ### 2. Pipeline de Producción (Recomendado) 🚀
 
+#### Opción A: Pipeline Original (AsyncIO)
+
 ```bash
 # Desde terminal
 uv run python pipelines/production/rag.py "¿Cuál es la arquitectura de Belcorp?"
@@ -102,12 +111,43 @@ print(result['answer'])
 print(f"Chunks usados: {result['num_chunks']}")
 ```
 
-**Configuración del pipeline de producción:**
+**Configuración:**
 - Chunking: `semantic` (θ=0.8)
 - Filtering: `enabled` (multi-stage LLM async)
 - Retrieval: 15 candidatos → 5 filtrados
-- Velocidad: ~10-15 segundos por query
+- Velocidad: ~2-3 segundos por query
 - Modelo: `gpt-4o-mini`
+
+#### Opción B: Pipeline DSPy (Prompts Optimizables) 🤖
+
+```bash
+# Entrenar scorer DSPy (solo una vez, toma 2-5 minutos)
+uv run python scripts/train_dspy.py
+
+# Usar pipeline DSPy (carga automáticamente el scorer optimizado)
+uv run python pipelines/production/rag_dspy.py "¿Cuál es la arquitectura de Belcorp?"
+```
+
+```python
+# Desde código Python
+from pipelines.production import ProductionRAGDSPy
+
+rag = ProductionRAGDSPy()  # Auto-carga compiled_scorer.json si existe
+result = rag.query("¿Qué componentes usa el sistema?", return_chunks=True)
+
+print(result['answer'])
+print(f"Chunks usados: {result['num_chunks']}")
+```
+
+**Configuración:**
+- Chunking: `semantic` (θ=0.8)
+- Filtering: `DSPy optimizable` (multi-stage con threads)
+- Retrieval: 15 candidatos → 5 filtrados
+- Velocidad: ~3-4 segundos por query
+- Modelo: `gpt-4o-mini`
+- **Ventaja:** Prompts optimizables automáticamente
+
+📚 **Para más detalles sobre DSPy, ver:** [`docs/DSPY_IMPLEMENTATION.md`](docs/DSPY_IMPLEMENTATION.md)
 
 ### 3. Evaluación (Benchmarking)
 
@@ -224,6 +264,98 @@ Filtrado granular a nivel de chunk (no documento completo).
 - Context Recall: 0.70
 - Faithfulness: 0.99
 - Factual Correctness: 0.35
+
+## 🤖 DSPy: Optimización Automática de Prompts
+
+**DSPy** (Declarative Self-improving Language Programs) es un framework de Stanford que permite **optimizar prompts automáticamente** en lugar de escribirlos manualmente.
+
+### ¿Por qué DSPy?
+
+El sistema usa **3 prompts diferentes** para filtering multi-etapa (Base, Reflection, Critic). Tradicionalmente:
+- ❌ Escribir prompts manualmente
+- ❌ Ajustar por prueba y error
+- ❌ Difícil de mejorar sistemáticamente
+
+Con DSPy:
+- ✅ Prompts optimizables automáticamente
+- ✅ Entrenamiento con ejemplos
+- ✅ Mejora continua agregando datos
+
+### Diferencia Clave: AsyncIO vs Threads
+
+| Aspecto | Pipeline Original | Pipeline DSPy |
+|---------|------------------|---------------|
+| Procesamiento | AsyncIO | ThreadPoolExecutor |
+| Velocidad | ~2-3s | ~3-4s |
+| Prompts | Hardcoded | Optimizables |
+| Paralelismo | `asyncio.gather` | `ThreadPoolExecutor(max_workers=15)` |
+
+**¿Por qué threads en DSPy?**
+
+DSPy usa llamadas síncronas a OpenAI internamente, por lo que `asyncio` no funciona. La solución es `ThreadPoolExecutor`:
+
+```python
+# Original (AsyncIO)
+async def score_chunk(chunk, query):
+    response = await llm.ainvoke(prompt)  # Async nativo
+    return score
+
+results = await asyncio.gather(*tasks)  # Paralelo
+
+# DSPy (Threads)
+def score_chunk_dspy(scorer, chunk, query):
+    scores = scorer(chunk=chunk, query=query)  # Sync
+    return scores
+
+with ThreadPoolExecutor(max_workers=15) as executor:
+    futures = [executor.submit(score_chunk_dspy, ...) for chunk in chunks]
+    results = [f.result() for f in as_completed(futures)]  # Paralelo
+```
+
+Ambos métodos logran **paralelismo real**, pero con diferentes mecanismos internos.
+
+### Entrenamiento DSPy
+
+```bash
+# Entrenar con 8 ejemplos (high/medium/low relevance)
+uv run python scripts/train_dspy.py
+
+# Salida:
+# - Bootstrapped 4 full traces
+# - 2 rondas de optimización
+# - Genera: pipelines/production/compiled_scorer.json
+```
+
+El archivo `compiled_scorer.json` (10 KB) contiene:
+- Prompts optimizados
+- Ejemplos few-shot seleccionados
+- Configuración del scorer
+
+### Comparación de Resultados
+
+**Mismo query:** "¿Cuál es la arquitectura de Belcorp?"
+
+| Métrica | Pipeline Original | DSPy Optimizado |
+|---------|------------------|-----------------|
+| Tiempo | 2s | 3s |
+| Chunks filtrados | 6 | 7 |
+| Threshold | 0.389 | 0.307 |
+
+**Chunks más relevantes (ambos incluyen):**
+- Propuesta Técnica Plataforma de Analítica
+- Reutilizar activos tecnológicos
+- Componentes modulares
+
+**Observación:** DSPy selecciona chunks ligeramente diferentes pero relevantes. Requiere evaluación con RAGAS para validar calidad.
+
+### Próximos Pasos con DSPy
+
+1. **Evaluar con RAGAS**: Comparar métricas vs pipeline original
+2. **Ampliar dataset**: Agregar más ejemplos (50-100)
+3. **Experimentar con 2 etapas**: Quizás Base + Critic sea suficiente
+4. **Optimizadores avanzados**: MIPROv2, COPRO
+
+📚 **Documentación completa:** [`docs/DSPY_IMPLEMENTATION.md`](docs/DSPY_IMPLEMENTATION.md)
 
 ## 🔧 Configuración Avanzada
 

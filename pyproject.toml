@@ -15,4 +15,5 @@ dependencies = [
     "llama-index",
     "tiktoken",
     "python-dotenv",
+    "dspy-ai>=3.1.0",
 ]
