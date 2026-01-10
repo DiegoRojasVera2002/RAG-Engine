@@ -8,3 +8,8 @@ llama-index
 chonkie
 tiktoken
 python-dotenv
+scikit-learn
+numpy
+boto3
+pypdf
+cohere
