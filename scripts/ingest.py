@@ -9,7 +9,8 @@ from qdrant_client.http import models
 from langchain_openai import OpenAIEmbeddings
 
 from config import get_env as env
-from src.chunking import chonkie_chunk, semantic_chunk
+# from src.chunking import chonkie_chunk, semantic_chunk  # Chonkie deshabilitado
+from src.chunking import semantic_chunk
 
 from pypdf import PdfReader
 import logging
@@ -92,23 +93,36 @@ if __name__ == "__main__":
     logger.info("=" * 80)
     logger.info("🚀 RAG INGESTION PIPELINE - STARTING")
     logger.info("=" * 80)
-    logger.info(f"Target collections: benchmark_chonkie, benchmark_semantic")
+    logger.info(f"Target collection: benchmark_semantic (ChunkRAG)")
     logger.info(f"Embedding model: text-embedding-3-large ({EMBED_DIM} dimensions)")
     logger.info("=" * 80 + "\n")
 
-    # recrea colecciones una sola vez
-    logger.info("🗑️  Recreating Qdrant collections...")
-    for label in ["chonkie", "semantic"]:
-        collection_name = f"{COLLECTION}_{label}"
-        logger.info(f"  └─ Recreating: {collection_name}")
-        client.recreate_collection(
-            collection_name=collection_name,
-            vectors_config=models.VectorParams(
-                size=EMBED_DIM,
-                distance=models.Distance.COSINE,
-            ),
-        )
-    logger.info("✅ Collections recreated\n")
+    # Recrea colección semantic
+    logger.info("🗑️  Recreating Qdrant collection...")
+    # SOLO SEMANTIC CHUNKING (ChunkRAG paper)
+    collection_name = f"{COLLECTION}_semantic"
+    logger.info(f"  └─ Recreating: {collection_name}")
+    client.recreate_collection(
+        collection_name=collection_name,
+        vectors_config=models.VectorParams(
+            size=EMBED_DIM,
+            distance=models.Distance.COSINE,
+        ),
+    )
+
+    # CHONKIE DESHABILITADO - Solo se usa semantic chunking para producción
+    # for label in ["chonkie", "semantic"]:
+    #     collection_name = f"{COLLECTION}_{label}"
+    #     logger.info(f"  └─ Recreating: {collection_name}")
+    #     client.recreate_collection(
+    #         collection_name=collection_name,
+    #         vectors_config=models.VectorParams(
+    #             size=EMBED_DIM,
+    #             distance=models.Distance.COSINE,
+    #         ),
+    #     )
+
+    logger.info("✅ Collection recreated\n")
 
     docs = load_all_pdfs_text("data")
 
@@ -120,13 +134,13 @@ if __name__ == "__main__":
         logger.info(f"📄 Processing document {idx}/{len(docs)}: {source}")
         logger.info("=" * 80 + "\n")
 
-        # Chonkie chunking
-        logger.info("--- CHONKIE (Token-based) ---")
-        chunks_chonkie = chonkie_chunk(text)
-        ingest(chunks_chonkie, "chonkie", source)
+        # CHONKIE DESHABILITADO - Solo se usa semantic chunking
+        # logger.info("--- CHONKIE (Token-based) ---")
+        # chunks_chonkie = chonkie_chunk(text)
+        # ingest(chunks_chonkie, "chonkie", source)
 
-        # Semantic chunking
-        logger.info("--- SEMANTIC (ChunkRAG-style) ---")
+        # Semantic chunking (ChunkRAG - Producción)
+        logger.info("--- SEMANTIC CHUNKING (ChunkRAG) ---")
         chunks_semantic = semantic_chunk(text)
         ingest(chunks_semantic, "semantic", source)
 
@@ -134,7 +148,8 @@ if __name__ == "__main__":
     logger.info("🎉 INGESTION COMPLETE!")
     logger.info("=" * 80)
     logger.info(f"Processed {len(docs)} documents")
-    logger.info("Collections ready:")
-    logger.info("  • benchmark_chonkie (token-based chunks)")
-    logger.info("  • benchmark_semantic (semantic chunks)")
+    logger.info("Collection ready:")
+    logger.info("  ✅ benchmark_semantic (ChunkRAG semantic chunks, θ=0.8)")
+    logger.info("")
+    logger.info("Chonkie chunking disabled (production uses semantic only)")
     logger.info("=" * 80)
